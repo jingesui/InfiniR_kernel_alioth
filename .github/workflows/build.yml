@@ -112,7 +112,7 @@ jobs:
           export LD_LIBRARY_PATH="/tmp/clang/lib64:$LD_LIBRARY_PATH"
           export KBUILD_BUILD_USER="Droidspaces-Build"
           export KBUILD_BUILD_HOST="GitHub-Actions"
-          export KCFLAGS="-enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang -Wno-pointer-sign -Wno-format -Wno-uninitialized"
+          export KCFLAGS="-enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang -Wno-pointer-sign -Wno-format -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-error=implicit-function-declaration"
           # Use alioth_defconfig (only valid defconfig for this kernel)
           make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- alioth_defconfig
           # Apply MIUI stock config tweaks on top
