@@ -1,4 +1,4 @@
-name: Build Kernel (alioth + Droidspaces + KernelSU)
+name: Build Kernel (alioth + Droidspaces + KernelSU + MIUI)
 
 on:
   workflow_dispatch:
@@ -44,29 +44,31 @@ jobs:
           sudo apt-get install -y bison build-essential bc curl libssl-dev git zip python3 python3-pip flex cpio libncurses5-dev wget patchelf llvm lld
           sudo pip3 install pyelftools
 
-      - name: Setup toolchain
+      - name: Setup toolchain & AnyKernel3
         run: |
           cd /tmp
+          # Clang 11 toolchain
           git clone https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone.git --depth=1 -b 11 clang
           echo "/tmp/clang/bin" >> $GITHUB_PATH
           echo "LD_LIBRARY_PATH=/tmp/clang/lib64:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          # GCC binutils
           git clone https://android.googlesource.com/platform/prebuilts/gas/linux-x86 --depth=1 /tmp/gas
           echo "/tmp/gas" >> $GITHUB_PATH
-          git clone https://github.com/UtsavBalar1231/Anykernel3 --depth=1 -b kona anykernel
+          # Original AnyKernel3 (osm0sis) for MIUI-compatible packaging
+          git clone https://github.com/osm0sis/AnyKernel3 --depth=1 anykernel
 
-      - name: Update KernelSU to v0.9.5 (stable, compatible with kernel 4.19)
+      - name: Update KernelSU to v0.9.5 (compatible with kernel 4.19)
         run: |
           rm -rf KernelSU .gitmodules 2>/dev/null || true
           git clone https://github.com/tiann/KernelSU.git /tmp/KernelSU-src --branch v0.9.5 --depth 1
           mkdir -p KernelSU/kernel
           cp -r /tmp/KernelSU-src/kernel/* KernelSU/kernel/
           rm -rf /tmp/KernelSU-src
-          # Patch ksu.c: MODULE_IMPORT_NS doesn't exist in kernel 4.19
+          # MODULE_IMPORT_NS doesn't exist in kernel 4.19
           sed -i '/^MODULE_IMPORT_NS/d' KernelSU/kernel/ksu.c
 
-      - name: Apply Droidspaces kernel config & MIUI tweaks
+      - name: Apply Droidspaces kernel config
         run: |
-          # Add droidspaces options to defconfig
           CFG=arch/arm64/configs/alioth_defconfig
           echo 'CONFIG_SYSVIPC=y' >> $CFG
           echo 'CONFIG_POSIX_MQUEUE=y' >> $CFG
@@ -108,6 +110,55 @@ jobs:
           patch -p1 < /tmp/patch1.patch
           patch -p1 < /tmp/patch2.patch
 
+      - name: Apply MIUI DTS fixes (BEFORE build — panel, FPS, FOD)
+        run: |
+          DTS=arch/arm64/boot/dts/vendor/qcom
+          # Fix panel dimensions for MIUI
+          sed -i 's/<70>/<695>/g' $DTS/dsi-panel-j3s-37-02-0a-dsc-video.dtsi
+          sed -i 's/<70>/<695>/g' $DTS/dsi-panel-j11-38-08-0a-fhd-cmd.dtsi
+          sed -i 's/<70>/<695>/g' $DTS/dsi-panel-k11a-38-08-0a-dsc-cmd.dtsi
+          sed -i 's/<71>/<710>/g' $DTS/dsi-panel-j1s*
+          sed -i 's/<71>/<710>/g' $DTS/dsi-panel-j2*
+          sed -i 's/<155>/<1544>/g' $DTS/dsi-panel-j3s-37-02-0a-dsc-video.dtsi
+          sed -i 's/<155>/<1545>/g' $DTS/dsi-panel-j11-38-08-0a-fhd-cmd.dtsi
+          sed -i 's/<155>/<1546>/g' $DTS/dsi-panel-k11a-38-08-0a-dsc-cmd.dtsi
+          sed -i 's/<154>/<1537>/g' $DTS/dsi-panel-j1s*
+          sed -i 's/<154>/<1537>/g' $DTS/dsi-panel-j2*
+          # Enable MIUI smart FPS, disable qsync min refresh
+          sed -i 's/qcom,mdss-dsi-qsync-min-refresh-rate/\/\/qcom,mdss-dsi-qsync-min-refresh-rate/g' $DTS/dsi-panel*
+          sed -i 's/\/\/ mi,mdss-dsi-smart-fps-max_framerate/mi,mdss-dsi-smart-fps-max_framerate/g' $DTS/dsi-panel*
+          sed -i 's/\/\/ mi,mdss-dsi-pan-enable-smart-fps/mi,mdss-dsi-pan-enable-smart-fps/g' $DTS/dsi-panel*
+          sed -i 's/\/\/ qcom,mdss-dsi-pan-enable-smart-fps/qcom,mdss-dsi-pan-enable-smart-fps/g' $DTS/dsi-panel*
+          # Fix refresh rates for MIUI
+          sed -i 's/120 90 60/120 90 60 50 30/g' $DTS/dsi-panel-g7a-37-02-0a-dsc-video.dtsi
+          sed -i 's/120 90 60/120 90 60 50 30/g' $DTS/dsi-panel-g7a-37-02-0b-dsc-video.dtsi
+          sed -i 's/120 90 60/120 90 60 50 30/g' $DTS/dsi-panel-g7a-36-02-0c-dsc-video.dtsi
+          sed -i 's/144 120 90 60/144 120 90 60 50 48 30/g' $DTS/dsi-panel-j3s-37-02-0a-dsc-video.dtsi
+          # Enable brightness control for MIUI FOD
+          sed -i 's/\/\/39 01 00 00 01 00 03 51 03 FF/39 01 00 00 01 00 03 51 03 FF/g' $DTS/dsi-panel-j11-38-08-0a-fhd-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 03 FF/39 01 00 00 00 00 03 51 03 FF/g' $DTS/dsi-panel-j11-38-08-0a-fhd-cmd.dtsi
+          sed -i 's/\/\/39 00 00 00 00 00 05 51 0F 8F 00 00/39 00 00 00 00 00 05 51 0F 8F 00 00/g' $DTS/dsi-panel-j1s-42-02-0a-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 05 51 07 FF 00 00/39 01 00 00 00 00 05 51 07 FF 00 00/g' $DTS/dsi-panel-j1s-42-02-0a-dsc-cmd.dtsi
+          sed -i 's/\/\/39 00 00 00 00 00 05 51 0F 8F 00 00/39 00 00 00 00 00 05 51 0F 8F 00 00/g' $DTS/dsi-panel-j1s-42-02-0a-mp-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 05 51 07 FF 00 00/39 01 00 00 00 00 05 51 07 FF 00 00/g' $DTS/dsi-panel-j1s-42-02-0a-mp-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 0F FF/39 01 00 00 00 00 03 51 0F FF/g' $DTS/dsi-panel-j1u-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 07 FF/39 01 00 00 00 00 03 51 07 FF/g' $DTS/dsi-panel-j1u-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 00 00/39 01 00 00 00 00 03 51 00 00/g' $DTS/dsi-panel-j2-38-0c-0a-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 0F FF/39 01 00 00 00 00 03 51 0F FF/g' $DTS/dsi-panel-j2-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 07 FF/39 01 00 00 00 00 03 51 07 FF/g' $DTS/dsi-panel-j2-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 00 00 00 00 00 05 51 0F 8F 00 00/39 00 00 00 00 00 05 51 0F 8F 00 00/g' $DTS/dsi-panel-j2-mp-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 05 51 07 FF 00 00/39 01 00 00 00 00 05 51 07 FF 00 00/g' $DTS/dsi-panel-j2-mp-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 0F FF/39 01 00 00 00 00 03 51 0F FF/g' $DTS/dsi-panel-j2-p1-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 07 FF/39 01 00 00 00 00 03 51 07 FF/g' $DTS/dsi-panel-j2-p1-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 00 00 00 00 00 03 51 0D FF/39 00 00 00 00 00 03 51 0D FF/g' $DTS/dsi-panel-j2-p2-1-38-0c-0a-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 11 00 03 51 03 FF/39 01 00 00 11 00 03 51 03 FF/g' $DTS/dsi-panel-j2-p2-1-38-0c-0a-dsc-cmd.dtsi
+          sed -i 's/\/\/39 00 00 00 00 00 05 51 0F 8F 00 00/39 00 00 00 00 00 05 51 0F 8F 00 00/g' $DTS/dsi-panel-j2-p2-1-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 05 51 07 FF 00 00/39 01 00 00 00 00 05 51 07 FF 00 00/g' $DTS/dsi-panel-j2-p2-1-42-02-0b-dsc-cmd.dtsi
+          sed -i 's/\/\/39 00 00 00 00 00 05 51 0F 8F 00 00/39 00 00 00 00 00 05 51 0F 8F 00 00/g' $DTS/dsi-panel-j2s-mp-42-02-0a-dsc-cmd.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 05 51 07 FF 00 00/39 01 00 00 00 00 05 51 07 FF 00 00/g' $DTS/dsi-panel-j2s-mp-42-02-0a-dsc-cmd.dtsi
+          sed -i 's/\/\/39 00 00 00 00 00 03 51 03 FF/39 00 00 00 00 00 03 51 03 FF/g' $DTS/dsi-panel-j9-38-0a-0a-fhd-video.dtsi
+          sed -i 's/\/\/39 01 00 00 00 00 03 51 03 FF/39 01 00 00 00 00 03 51 03 FF/g' $DTS/dsi-panel-j9-38-0a-0a-fhd-video.dtsi
+
       - name: Build kernel
         run: |
           export ARCH=arm64
@@ -116,54 +167,85 @@ jobs:
           export KBUILD_BUILD_USER="Droidspaces-Build"
           export KBUILD_BUILD_HOST="GitHub-Actions"
           export KCFLAGS="-enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang -Wno-pointer-sign -Wno-format -Wno-uninitialized -Wno-sometimes-uninitialized -Wno-error=implicit-function-declaration"
-          # Use alioth_defconfig (only valid defconfig for this kernel)
+          # Configure with alioth_defconfig
           make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- alioth_defconfig
-          # Apply MIUI stock config tweaks on top
-          scripts/config --file out/.config             -d CONFIG_LOCALVERSION_AUTO             -d CONFIG_TOUCHSCREEN_COMMON             --set-str CONFIG_STATIC_USERMODEHELPER_PATH /system/bin/micd             -e CONFIG_IPC_LOGGING             -e CONFIG_MI_DRM_OPT             -d CONFIG_OSSFOD
+          # Apply MIUI stock config tweaks
+          scripts/config --file out/.config \
+            -d CONFIG_LOCALVERSION_AUTO \
+            -d CONFIG_TOUCHSCREEN_COMMON \
+            --set-str CONFIG_STATIC_USERMODEHELPER_PATH /system/bin/micd \
+            -e CONFIG_IPC_LOGGING \
+            -e CONFIG_MI_DRM_OPT \
+            -d CONFIG_OSSFOD
           make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- olddefconfig
-          # Build - capture exit code without pipe to preserve error code
+          # Build
           make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- >out/build.log 2>&1 || export MAKE_STATUS=$?
           echo "=== Last 50 lines of build.log ==="
           tail -50 out/build.log
-          echo "=== Errors (case-insensitive) in build.log ==="
-          grep -ni "error" out/build.log | head -30 || echo "(no 'error' lines found)"
-          echo "=== Last error lines (may contain LLVM crash noise) ==="
-          grep -ni "error" out/build.log | tail -10 || echo "(none)"
-          echo "=== Fatal/Warning/Cannot lines ==="
-          grep -ni "fatal\|cannot\|undefined\|implicit\|ld:" out/build.log | tail -20 || echo "(none)"
-          echo "=== KernelSU compilation output ==="
-          grep -ni "kernelsu" out/build.log | grep -i "error\|warning:\|In file included" | head -30 || echo "(none)"
+          echo "=== Errors in build.log ==="
+          grep -ni "error" out/build.log | head -30 || echo "(none)"
           if [ -n "${MAKE_STATUS:-}" ] && [ "$MAKE_STATUS" -ne 0 ]; then
             echo "Build failed with exit code $MAKE_STATUS"
             exit $MAKE_STATUS
           fi
-          # Check that image was actually produced
+          # Verify kernel image
           if [ ! -f out/arch/arm64/boot/Image ] && [ ! -f out/arch/arm64/boot/Image.gz ]; then
             echo "ERROR: Kernel image not produced!"
             exit 1
           fi
-          find out/arch/arm64/boot/dts/vendor/qcom -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb 2>/dev/null || true
 
-      - name: Package with AnyKernel3
+      - name: Package with AnyKernel3 (MIUI-compatible)
         run: |
-          mkdir -p anykernel/kernels/alioth
-          cp out/arch/arm64/boot/Image anykernel/kernels/alioth 2>/dev/null || cp out/arch/arm64/boot/Image.gz anykernel/kernels/alioth 2>/dev/null || true
-          cp out/arch/arm64/boot/dtb anykernel/kernels/alioth 2>/dev/null || true
-          find out/arch/arm64/boot -name "dtbo.img" -exec cp {} anykernel/kernels/alioth 2>/dev/null \; || true
-          cd anykernel
-          ZIPNAME="Kernel-alioth-Droidspaces-KSU-$(date +%Y%m%d-%H%M).zip"
-          zip -r9 "../$ZIPNAME" ./* -x .git .gitignore ./*.zip
-          cd ..
+          OUT_BOOT=out/arch/arm64/boot
+          DTB_DIR=$OUT_BOOT/dts/vendor/qcom
+          AK3=/tmp/anykernel
+          # Generate anykernel.sh for MIUI alioth (dump_boot/write_boot style)
+          cat > "$AK3/anykernel.sh" << 'AK3EOF'
+# AnyKernel3 Ramdisk Mod Script
+# osm0sis @ xda-developers
+properties() { '
+kernel.string=InfiniR Kernel alioth (Droidspaces + KernelSU)
+device.name1=alioth
+device.name2=aliothin
+do.devicecheck=1
+do.modules=0
+do.systemless=1
+do.cleanup=1
+do.cleanuponabort=0
+'; }
+block=boot;
+is_slot_device=1;
+ramdisk_compression=auto;
+. tools/ak3-core.sh;
+set_perm_recursive 0 0 755 644 $ramdisk/*;
+set_perm_recursive 0 0 750 750 $ramdisk/init* $ramdisk/sbin;
+dump_boot;
+if [ -d \$ramdisk/overlay ]; then
+  rm -rf \$ramdisk/overlay;
+fi;
+write_boot;
+AK3EOF
+          chmod +x "$AK3/anykernel.sh"
+          # Copy kernel image
+          cp "$OUT_BOOT/Image" "$AK3/Image"
+          # Concatenate DTB files into dt.img (standard AK3 format)
+          cat $DTB_DIR/*.dtb > "$AK3/dt.img" 2>/dev/null || true
+          # Remove AnyKernel3 git leftovers
+          rm -rf "$AK3/.git" "$AK3/.gitignore"
+          # Zip
+          cd "$AK3"
+          ZIPNAME="InfiniR_Kernel_alioth_MIUI_$(date +%Y%m%d-%H%M).zip"
+          zip -r9 "/tmp/$ZIPNAME" . -x "*.zip"
+          cd /tmp
+          ls -lh "$ZIPNAME"
 
-      - name: Upload kernel artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: alioth-kernel-droidspaces-ksu-${{ env.BRANCH }}
+          name: alioth-kernel-droidspaces-ksu-miui-${{ env.BRANCH }}
           path: |
             *.zip
             out/arch/arm64/boot/Image
             out/arch/arm64/boot/Image.gz
-            out/arch/arm64/boot/dtb
-            out/arch/arm64/boot/dtbo.img
           if-no-files-found: warn
           retention-days: 7
