@@ -118,13 +118,14 @@ jobs:
           # Apply MIUI stock config tweaks on top
           scripts/config --file out/.config             -d CONFIG_LOCALVERSION_AUTO             -d CONFIG_TOUCHSCREEN_COMMON             --set-str CONFIG_STATIC_USERMODEHELPER_PATH /system/bin/micd             -e CONFIG_IPC_LOGGING             -e CONFIG_MI_DRM_OPT             -d CONFIG_OSSFOD
           make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- olddefconfig
-          # Build - set +e to capture exit code before tee
-          set +e
-          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- > >(tee build.log) 2>&1
-          rc=$?
-          set -e
-          tail -30 build.log
-          if [ $rc -ne 0 ]; then exit $rc; fi
+          # Build - redirect to file to avoid pipe masking exit code
+          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- >out/build.log 2>&1
+          tail -30 out/build.log
+          # Check that image was actually produced
+          if [ ! -f out/arch/arm64/boot/Image ] && [ ! -f out/arch/arm64/boot/Image.gz ]; then
+            echo "ERROR: Kernel image not produced!"
+            exit 1
+          fi
           find out/arch/arm64/boot/dts/vendor/qcom -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb 2>/dev/null || true
 
       - name: Package with AnyKernel3
