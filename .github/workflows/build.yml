@@ -130,6 +130,8 @@ jobs:
           grep -ni "error" out/build.log | tail -30 || echo "(no 'error' lines found)"
           echo "=== Fatal/Warning/Cannot lines ==="
           grep -ni "fatal\|cannot\|undefined\|implicit\|ld:" out/build.log | tail -20 || echo "(none)"
+          echo "=== KernelSU compilation output ==="
+          grep -ni "kernelsu" out/build.log | grep -i "error\|warning:\|In file included" | head -30 || echo "(none)"
           if [ -n "${MAKE_STATUS:-}" ] && [ "$MAKE_STATUS" -ne 0 ]; then
             echo "Build failed with exit code $MAKE_STATUS"
             exit $MAKE_STATUS
