@@ -97,6 +97,7 @@ jobs:
           echo 'CONFIG_NF_CONNTRACK_NETLINK=y' >> $CFG
           echo 'CONFIG_NF_CONNTRACK_IPV4=y' >> $CFG
           echo 'CONFIG_USER_NS=y' >> $CFG
+          echo 'CONFIG_MODULES=y' >> $CFG
           echo 'CONFIG_KPROBES=y' >> $CFG
           echo 'CONFIG_KSU=y' >> $CFG
 
