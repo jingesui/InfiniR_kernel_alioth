@@ -89,21 +89,14 @@ jobs:
           echo 'CONFIG_NF_CONNTRACK_NETLINK=y' >> $CFG
           echo 'CONFIG_NF_CONNTRACK_IPV4=y' >> $CFG
           echo 'CONFIG_USER_NS=y' >> $CFG
-          echo "Droidspaces config applied"
 
       - name: Apply Droidspaces non-GKI patches
         run: |
-          sed -i 's/struct rtnl_link_stats64 dev_stats, \*stats;/struct rtnl_link_stats64 *stats;/' net/netfilter/xt_qtaguid.c 2>/dev/null || true
-          sed -i '/if (iface_entry->active) {/,/} else {/c\    stats = \&no_dev_stats;' net/netfilter/xt_qtaguid.c 2>/dev/null || true
-          sed -i '/dev_get_stats/d' net/netfilter/xt_qtaguid.c 2>/dev/null || true
-          LINE=$(grep -n "spin_unlock_irq(&cgroup_file_kn_lock)" kernel/cgroup/cgroup.c | head -1 | cut -d: -f1)
-          if [ -n "$LINE" ]; then
-            sed -i "$LINE a\
-        if (cft->ss \&\& (cgrp->root->flags \& CGRP_ROOT_NOPREFIX) \&\& !(cft->flags \& CFTYPE_NO_PREFIX)) {\
-                        snprintf(name, CGROUP_FILE_NAME_MAX, \"%s.%s\", cft->ss->name, cft->name);\
-                        kernfs_create_link(cgrp->kn, name, kn);\
-        }" kernel/cgroup/cgroup.c
-          fi
+          echo 'LS0tIGEvbmV0L25ldGZpbHRlci94dF9xdGFndWlkLmMKLS0tIGIvbmV0L25ldGZpbHRlci94dF9xdGFndWlkLmMKQEBALTA3MzksNyArMDczOSw3IEBAIHN0YXRpYyBpbnQgaWZhY2Vfc3RhdF9mbXRfcHJvY19zaG93KHN0cnVjdCBzZXFfZmlsZSAqbSwgdm9pZCAqdikKIHsKIAlzdHJ1Y3QgcHJvY19pZmFjZV9zdGF0X2ZtdF9pbmZvICpwID0gbS0+cHJpdmF0ZTsKIAlzdHJ1Y3QgaWZhY2Vfc3RhdCAqaWZhY2VfZW50cnk7Ci0Jc3RydWN0IHJ0bmxfbGlua19zdGF0NjQgZGV2X3N0YXRzLCAqc3RhdHM7CisJc3RydWN0IHJ0bmxfbGlua19zdGF0NjQgKnN0YXRzOwogCXN0cnVjdCBydG5sX2xpbmtfc3RhdDY0IG5vX2Rldl9zdGF0cyA9IHswfTsKIAogCi0JSWYgKGlmYWNlX2VudHJ5LT5hY3RpdmUpIHsKLQkJc3RhdHMgPSBkZXZfZ2V0X3N0YXRzKGlmYWNlX2VudHJ5LT5uZXRfZGV2LAotCQkJCSAgICAgICZkZXZfc3RhdHMpOwotCX0gZWxzZSB7Ci0JCXN0YXRzID0gJm5vX2Rldl9zdGF0czsKLQl9CisJc3RhdHMgPSAmbm9fZGV2X3N0YXRzOworCiAJLyoKIAkgKiBJZiB0aGUgbWVhbmluZyBvZiB0aGUgZGF0YSBjaGFuZ2VzLCB0aGVuIHVwZGF0ZSB0aGUgZm10WAogCSAqIHN0cmluZy4=' | base64 -d > /tmp/patch1.patch
+          echo 'LS0tIGEvY2dyb3VwL2Nncm91cC5jCi0tLSBiL2tncm91cC9jZ3JvdXAuYwpAQCAtMzQ5Niw2ICszNDk2LDExIEBAIHN0YXRpYyBpbnQgY2dyb3VwX2FkZF9maWxlKHN0cnVjdCBjZ3JvdXBfc3Vic3lzX3N0YXRlICpjc3MsIHN0cnVjdCBjZ3JvdXAgKmNncnAsCiAJCXNwaW5fdW5sb2NrX2lycSgmY2dyb3VwX2ZpbGVfa25fbG9jayk7CiAJfQogCisJaWYgKGNmdC0+c3MgJiYgKGNncnAtPnJvb3QtPmZsYWdzICYgQ0dSUF9ST09UX05PUFJFRklYKSAmJiAhKGNmdC0+ZmxhZ3MgJiBDRlRZUEVfTk9fUFJFRklYKSkgeworCQkJCXNucHJpbnRmKG5hbWUsIENHUk9VUF9GSUxFX05BTUVfTUFYLCAiJXMuJXMiLCBjZnQtPnNzLT5uYW1lLCBjZnQtPm5hbWUpOworCQkJCWtlcm5mc19jcmVhdGVfbGluayhjZ3JwLT5rbiwgbmFtZSwga24pOworCX0KKwogCXJldHVybiAwOwogfQ==' | base64 -d > /tmp/patch2.patch
+          patch -p1 < /tmp/patch1.patch
+          patch -p1 < /tmp/patch2.patch
+          echo "Both patches applied"
 
       - name: Build kernel
         run: |
