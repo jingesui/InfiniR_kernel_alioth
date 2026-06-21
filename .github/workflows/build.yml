@@ -120,7 +120,12 @@ jobs:
           make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- olddefconfig
           # Build - capture exit code without pipe to preserve error code
           make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- >out/build.log 2>&1 || export MAKE_STATUS=$?
-          tail -80 out/build.log
+          echo "=== Last 50 lines of build.log ==="
+          tail -50 out/build.log
+          echo "=== Errors (case-insensitive) in build.log ==="
+          grep -ni "error" out/build.log | tail -30 || echo "(no 'error' lines found)"
+          echo "=== Fatal/Warning/Cannot lines ==="
+          grep -ni "fatal\|cannot\|undefined\|implicit\|ld:" out/build.log | tail -20 || echo "(none)"
           if [ -n "${MAKE_STATUS:-}" ] && [ "$MAKE_STATUS" -ne 0 ]; then
             echo "Build failed with exit code $MAKE_STATUS"
             exit $MAKE_STATUS
