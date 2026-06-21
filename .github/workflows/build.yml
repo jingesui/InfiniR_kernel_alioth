@@ -48,10 +48,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            bison build-essential bc curl libssl-dev git zip \
-            python3 python3-pip flex cpio libncurses5-dev wget \
-            patchelf llvm lld
+          sudo apt-get install -y bison build-essential bc curl libssl-dev git zip python3 python3-pip flex cpio libncurses5-dev wget patchelf llvm lld
           sudo pip3 install pyelftools
 
       - name: Setup toolchain
@@ -74,27 +71,25 @@ jobs:
 
       - name: Apply Droidspaces kernel config
         run: |
-          cat >> arch/arm64/configs/$DEFCONFIG << 'DROIDSPACES'
-
-          # Droidspaces mandatory kernel configuration
-          CONFIG_SYSVIPC=y
-          CONFIG_POSIX_MQUEUE=y
-          CONFIG_PID_NS=y
-          CONFIG_IPC_NS=y
-          CONFIG_CGROUP_DEVICE=y
-          CONFIG_CGROUP_PIDS=y
-          CONFIG_CGROUP_NET_PRIO=y
-          CONFIG_DEVTMPFS=y
-          CONFIG_FW_LOADER_COMPRESS=y
-          CONFIG_BRIDGE_NETFILTER=y
-          CONFIG_NF_TABLES=y
-          CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y
-          CONFIG_NETFILTER_XT_TARGET_TCPMSS=y
-          CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
-          CONFIG_NF_CONNTRACK_NETLINK=y
-          CONFIG_NF_CONNTRACK_IPV4=y
-          CONFIG_USER_NS=y
-DROIDSPACES
+          CFG=arch/arm64/configs/$DEFCONFIG
+          echo 'CONFIG_SYSVIPC=y' >> $CFG
+          echo 'CONFIG_POSIX_MQUEUE=y' >> $CFG
+          echo 'CONFIG_PID_NS=y' >> $CFG
+          echo 'CONFIG_IPC_NS=y' >> $CFG
+          echo 'CONFIG_CGROUP_DEVICE=y' >> $CFG
+          echo 'CONFIG_CGROUP_PIDS=y' >> $CFG
+          echo 'CONFIG_CGROUP_NET_PRIO=y' >> $CFG
+          echo 'CONFIG_DEVTMPFS=y' >> $CFG
+          echo 'CONFIG_FW_LOADER_COMPRESS=y' >> $CFG
+          echo 'CONFIG_BRIDGE_NETFILTER=y' >> $CFG
+          echo 'CONFIG_NF_TABLES=y' >> $CFG
+          echo 'CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y' >> $CFG
+          echo 'CONFIG_NETFILTER_XT_TARGET_TCPMSS=y' >> $CFG
+          echo 'CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y' >> $CFG
+          echo 'CONFIG_NF_CONNTRACK_NETLINK=y' >> $CFG
+          echo 'CONFIG_NF_CONNTRACK_IPV4=y' >> $CFG
+          echo 'CONFIG_USER_NS=y' >> $CFG
+          echo "Droidspaces config applied to $DEFCONFIG"
 
       - name: Apply Droidspaces non-GKI patches
         run: |
@@ -122,7 +117,7 @@ DROIDSPACES
           mkdir -p anykernel/kernels/alioth
           cp out/arch/arm64/boot/Image anykernel/kernels/alioth 2>/dev/null || cp out/arch/arm64/boot/Image.gz anykernel/kernels/alioth 2>/dev/null || true
           cp out/arch/arm64/boot/dtb anykernel/kernels/alioth 2>/dev/null || true
-          find out/arch/arm64/boot -name "dtbo.img" -exec cp {} anykernel/kernels/alioth \; 2>/dev/null || true
+          find out/arch/arm64/boot -name "dtbo.img" -exec cp {} anykernel/kernels/alioth 2>/dev/null \; || true
           cd anykernel
           ZIPNAME="Kernel-alioth-Droidspaces-KSU-$(date +%Y%m%d-%H%M).zip"
           zip -r9 "../$ZIPNAME" ./* -x .git .gitignore ./*.zip
