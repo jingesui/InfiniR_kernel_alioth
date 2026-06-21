@@ -54,18 +54,13 @@ jobs:
           echo "/tmp/gas" >> $GITHUB_PATH
           git clone https://github.com/UtsavBalar1231/Anykernel3 --depth=1 -b kona anykernel
 
-      - name: Update KernelSU to latest
+      - name: Update KernelSU to v1.0.0 (compatible with kernel 4.19)
         run: |
           rm -rf KernelSU .gitmodules 2>/dev/null || true
-          git clone --depth 1 https://github.com/tiann/KernelSU.git /tmp/KernelSU-src
+          git clone https://github.com/tiann/KernelSU.git /tmp/KernelSU-src --branch v1.0.0 --depth 1
           mkdir -p KernelSU/kernel
           cp -r /tmp/KernelSU-src/kernel/* KernelSU/kernel/
-          cp -r /tmp/KernelSU-src/uapi KernelSU/uapi/
           rm -rf /tmp/KernelSU-src
-          # Patch init.c: MODULE_IMPORT_NS requires Linux 5.3+, comment it out for kernel 4.19
-          sed -i 's/^MODULE_IMPORT_NS/\/\/ MODULE_IMPORT_NS/' KernelSU/kernel/core/init.c
-          # Patch sucompat.c: linux/pgtable.h doesn't exist in kernel 4.19 (added in 5.8)
-          sed -i '/^#include <linux\/pgtable.h>/d' KernelSU/kernel/feature/sucompat.c
 
       - name: Apply Droidspaces kernel config & MIUI tweaks
         run: |
@@ -102,8 +97,6 @@ jobs:
           echo 'CONFIG_NF_CONNTRACK_NETLINK=y' >> $CFG
           echo 'CONFIG_NF_CONNTRACK_IPV4=y' >> $CFG
           echo 'CONFIG_USER_NS=y' >> $CFG
-          echo 'CONFIG_MODULES=y' >> $CFG
-          echo 'CONFIG_KPROBES=y' >> $CFG
           echo 'CONFIG_KSU=y' >> $CFG
 
       - name: Apply Droidspaces non-GKI patches
