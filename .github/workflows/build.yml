@@ -1,4 +1,4 @@
-name: Build Kernel (alioth-stock + Droidspaces + KernelSU)
+name: Build Kernel (alioth + Droidspaces + KernelSU)
 
 on:
   workflow_dispatch:
@@ -13,18 +13,9 @@ on:
           - 14.0-alioth
           - 15.0-alioth
           - 16.0-alioth
-      defconfig:
-        description: Defconfig to use
-        required: false
-        default: 'alioth_stock-defconfig'
-        type: choice
-        options:
-          - alioth_stock-defconfig
-          - alioth_defconfig
 
 env:
   TARGET_ARCH: arm64
-  DEFCONFIG: ${{ github.event.inputs.defconfig || 'alioth_stock-defconfig' }}
   BRANCH: ${{ github.event.inputs.branch || '13.0-alioth' }}
 
 jobs:
@@ -71,9 +62,10 @@ jobs:
           cp -r /tmp/KernelSU-src/kernel/* KernelSU/
           rm -rf /tmp/KernelSU-src
 
-      - name: Apply Droidspaces kernel config
+      - name: Apply Droidspaces kernel config & MIUI tweaks
         run: |
-          CFG=arch/arm64/configs/$DEFCONFIG
+          # Add droidspaces options to defconfig
+          CFG=arch/arm64/configs/alioth_defconfig
           echo 'CONFIG_SYSVIPC=y' >> $CFG
           echo 'CONFIG_POSIX_MQUEUE=y' >> $CFG
           echo 'CONFIG_PID_NS=y' >> $CFG
@@ -106,7 +98,12 @@ jobs:
           export LD_LIBRARY_PATH="/tmp/clang/lib64:$LD_LIBRARY_PATH"
           export KBUILD_BUILD_USER="Droidspaces-Build"
           export KBUILD_BUILD_HOST="GitHub-Actions"
-          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- $DEFCONFIG 2>&1 | tail -10
+          # Use alioth_defconfig (only valid defconfig for this kernel)
+          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- alioth_defconfig 2>&1 | tail -10
+          # Apply MIUI stock config tweaks on top
+          scripts/config --file out/.config             -d CONFIG_LOCALVERSION_AUTO             -d CONFIG_TOUCHSCREEN_COMMON             --set-str CONFIG_STATIC_USERMODEHELPER_PATH /system/bin/micd             -e CONFIG_IPC_LOGGING             -e CONFIG_MI_DRM_OPT             -d CONFIG_OSSFOD
+          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- olddefconfig 2>&1 | tail -5
+          # Build
           make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- 2>&1 | tee build.log | tail -30
           find out/arch/arm64/boot/dts/vendor/qcom -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb 2>/dev/null || true
 
