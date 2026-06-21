@@ -58,8 +58,8 @@ jobs:
         run: |
           rm -rf KernelSU .gitmodules 2>/dev/null || true
           git clone --depth 1 https://github.com/tiann/KernelSU.git /tmp/KernelSU-src
-          mkdir -p KernelSU
-          cp -r /tmp/KernelSU-src/kernel/* KernelSU/
+          mkdir -p KernelSU/kernel
+          cp -r /tmp/KernelSU-src/kernel/* KernelSU/kernel/
           rm -rf /tmp/KernelSU-src
 
       - name: Apply Droidspaces kernel config & MIUI tweaks
