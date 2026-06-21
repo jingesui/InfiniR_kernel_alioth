@@ -113,12 +113,12 @@ jobs:
           export KBUILD_BUILD_USER="Droidspaces-Build"
           export KBUILD_BUILD_HOST="GitHub-Actions"
           # Use alioth_defconfig (only valid defconfig for this kernel)
-          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- alioth_defconfig 2>&1 | tail -10
+          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- alioth_defconfig
           # Apply MIUI stock config tweaks on top
-          scripts/config --file out/.config             -d CONFIG_LOCALVERSION_AUTO             -d CONFIG_TOUCHSCREEN_COMMON             --set-str CONFIG_STATIC_USERMODEHELPER_PATH /system/bin/micd             -e CONFIG_IPC_LOGGING             -e CONFIG_MI_DRM_OPT             -d CONFIG_OSSFOD
-          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- olddefconfig 2>&1 | tail -5
+          scripts/config --file out/.config             -d CONFIG_LOCALVERSION_AUTO             -d CONFIG_TOUCHSCREEN_COMMON             --set-str CONFIG_STATIC_USERMODEHELPER_PATH /system/bin/micd             -e CONFIG_IPC_LOGGING             -e CONFIG_MI_DRM_OPT             -d CONFIG_OSSFOD             --disable CONFIG_INIT_STACK_ALL_ZERO
+          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- olddefconfig
           # Build
-          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- 2>&1 | tee build.log | tail -30
+          make -j$(nproc) O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_COMPAT=arm-linux-gnueabi- 2>&1 | tee build.log
           find out/arch/arm64/boot/dts/vendor/qcom -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb 2>/dev/null || true
 
       - name: Package with AnyKernel3
