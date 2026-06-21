@@ -13,17 +13,19 @@ on:
           - 14.0-alioth
           - 15.0-alioth
           - 16.0-alioth
-  push:
-    branches:
-      - 13.0-alioth
-      - 14.0-alioth
-      - 15.0-alioth
-      - 16.0-alioth
+      defconfig:
+        description: 'Defconfig to use'
+        required: false
+        default: 'alioth_stock-defconfig'
+        type: choice
+        options:
+          - alioth_stock-defconfig
+          - alioth_defconfig
 
 env:
   TARGET_ARCH: arm64
-  KERNEL_CONFIG: alioth_stock-defconfig
-  CLANG_VERSION: 14.0.7
+  DEFCONFIG: ${{ github.event.inputs.defconfig || 'alioth_stock-defconfig' }}
+  BRANCH: ${{ github.event.inputs.branch || '13.0-alioth' }}
 
 jobs:
   build-kernel:
@@ -33,215 +35,169 @@ jobs:
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          submodules: recursive
-          ref: ${{ github.event.inputs.branch || github.ref_name }}
+          fetch-depth: 1
+          ref: ${{ env.BRANCH }}
 
-      - name: Setup AOSP Clang toolchain
+      - name: Add Swap (5GB)
         run: |
-          mkdir -p /tmp/toolchains
-          cd /tmp/toolchains
-          # Download AOSP prebuilt clang
-          curl -LO https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r450784d.tar.gz
-          mkdir -p clang-r450784d && tar xzf clang-r450784d.tar.gz -C clang-r450784d
-          echo "/tmp/toolchains/clang-r450784d/bin" >> $GITHUB_PATH
-          # Download aarch64 cross-compiler
-          curl -LO https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/main.tar.gz
-          mkdir -p aarch64-linux-android-4.9 && tar xzf main.tar.gz -C aarch64-linux-android-4.9
-          echo "/tmp/toolchains/aarch64-linux-android-4.9/bin" >> $GITHUB_PATH
-          # Download arm cross-compiler
-          curl -LO https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/main.tar.gz
-          mkdir -p arm-linux-androideabi-4.9 && tar xzf main.tar.gz -C arm-linux-androideabi-4.9
-          echo "/tmp/toolchains/arm-linux-androideabi-4.9/bin" >> $GITHUB_PATH
-          echo "TOOLCHAIN_PATH=/tmp/toolchains" >> $GITHUB_ENV
+          sudo fallocate -l 5G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          free -h
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bison build-essential bc curl libssl-dev git zip \
+            python3 python3-pip flex cpio libncurses5-dev wget \
+            patchelf llvm lld
+          sudo pip3 install pyelftools
+
+      - name: Setup toolchain
+        run: |
+          cd /tmp
+          git clone https://gitlab.com/ThankYouMario/android_prebuilts_clang-standalone.git \
+            --depth=1 -b 11 clang
+          echo "/tmp/clang/bin" >> $GITHUB_PATH
+          echo "LD_LIBRARY_PATH=/tmp/clang/lib64:\${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+          git clone https://android.googlesource.com/platform/prebuilts/gas/linux-x86 \
+            --depth=1 /tmp/gas
+          echo "/tmp/gas" >> $GITHUB_PATH
+          git clone https://github.com/UtsavBalar1231/Anykernel3 \
+            --depth=1 -b kona anykernel
 
       - name: Update KernelSU to latest
         run: |
-          # Remove old KernelSU submodule
-          git submodule deinit -f KernelSU 2>/dev/null || true
-          rm -rf KernelSU
-          # Clone latest KernelSU source into KernelSU directory
-          git clone --depth 1 --branch main https://github.com/tiann/KernelSU.git KernelSU-tmp
-          # Only copy the kernel module source (kernel/ directory -> KernelSU/)
-          rm -rf KernelSU
+          rm -rf KernelSU .gitmodules 2>/dev/null || true
+          git clone --depth 1 https://github.com/tiann/KernelSU.git /tmp/KernelSU-src
           mkdir -p KernelSU
-          cp -r KernelSU-tmp/kernel/* KernelSU/
-          rm -rf KernelSU-tmp
-          # Add to git so it's tracked
-          git add KernelSU/
-          echo "KernelSU updated to latest commit: $(git -C KernelSU rev-parse HEAD 2>/dev/null || echo 'unknown')"
+          cp -r /tmp/KernelSU-src/kernel/* KernelSU/
+          rm -rf /tmp/KernelSU-src
+          echo "KernelSU source updated to latest main"
 
       - name: Apply Droidspaces kernel config
         run: |
-          cat >> arch/arm64/configs/alioth_stock-defconfig << 'DROIDSPACES_CONFIG'
+          cat >> arch/arm64/configs/$DEFCONFIG << 'DROIDSPACES'
 
-          # Droidspaces mandatory configuration
-          # IPC mechanisms
-          CONFIG_SYSCTL=y
+          # Droidspaces mandatory kernel configuration
           CONFIG_SYSVIPC=y
           CONFIG_POSIX_MQUEUE=y
-
-          # Core namespace support
           CONFIG_PID_NS=y
           CONFIG_IPC_NS=y
-
-          # Seccomp
-          CONFIG_SECCOMP_FILTER=y
-
-          # Control groups
           CONFIG_CGROUP_DEVICE=y
           CONFIG_CGROUP_PIDS=y
           CONFIG_CGROUP_NET_PRIO=y
-
-          # Device filesystem
           CONFIG_DEVTMPFS=y
-
-          # Firmware
           CONFIG_FW_LOADER_COMPRESS=y
-
-          # Network
           CONFIG_BRIDGE_NETFILTER=y
           CONFIG_NF_TABLES=y
           CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y
           CONFIG_NETFILTER_XT_TARGET_TCPMSS=y
           CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y
           CONFIG_NF_CONNTRACK_NETLINK=y
-
-          # Legacy compat
           CONFIG_NF_CONNTRACK_IPV4=y
-
-          # User namespace
           CONFIG_USER_NS=y
-DROIDSPACES_CONFIG
-          echo "Droidspaces config applied."
+DROIDSPACES
+          echo "Droidspaces config applied to $DEFCONFIG"
+
+      - name: Verify config options
+        run: |
+          echo "=== Checking critical droidspaces config ==="
+          for opt in SYSVIPC POSIX_MQUEUE PID_NS IPC_NS DEVTMPFS CGROUP_DEVICE \
+                     CGROUP_PIDS BRIDGE_NETFILTER NF_TABLES USER_NS; do
+            grep -q "CONFIG_${opt}=y" arch/arm64/configs/$DEFCONFIG && \
+              echo "  CONFIG_${opt}=y" || echo "  CONFIG_${opt}=y MISSING"
+          done
 
       - name: Apply Droidspaces non-GKI patches
         run: |
-          # Patch 1: fix kernel panic in xt_qtaguid
-          cat > /tmp/patch1.patch << 'PATCH1'
-diff --git a/net/netfilter/xt_qtaguid.c b/net/netfilter/xt_qtaguid.c
-index 8cb9c30bf..bf4bd9f56 100755
---- a/net/netfilter/xt_qtaguid.c
-+++ b/net/netfilter/xt_qtaguid.c
-@@ -739,7 +739,7 @@ static int iface_stat_fmt_proc_show(struct seq_file *m, void *v)
- {
- 	struct proc_iface_stat_fmt_info *p = m->private;
- 	struct iface_stat *iface_entry;
--	struct rtnl_link_stats64 dev_stats, *stats;
-+	struct rtnl_link_stats64 *stats;
- 	struct rtnl_link_stats64 no_dev_stats = {0};
- 
- 
-@@ -748,12 +748,8 @@ static int iface_stat_fmt_proc_show(struct seq_file *m, void *v)
- 
- 	iface_entry = list_entry(v, struct iface_stat, list);
- 
--	if (iface_entry->active) {
--		stats = dev_get_stats(iface_entry->net_dev,
--				      &dev_stats);
--	} else {
--		stats = &no_dev_stats;
--	}
-+	stats = &no_dev_stats;
-+
- 	/*
- 	 * If the meaning of the data changes, then update the fmtX
- 	 * string.
-PATCH1
-          patch -p1 < /tmp/patch1.patch || echo "Patch 1 already applied or failed, continuing..."
+          sed -i 's/struct rtnl_link_stats64 dev_stats, \*stats;/struct rtnl_link_stats64 *stats;/' \
+            net/netfilter/xt_qtaguid.c 2>/dev/null || true
+          sed -i '/if (iface_entry->active) {/,/} else {/c\	stats = \&no_dev_stats;' \
+            net/netfilter/xt_qtaguid.c 2>/dev/null || true
+          sed -i '/dev_get_stats/d' net/netfilter/xt_qtaguid.c 2>/dev/null || true
+          echo "Patch 1 (xt_qtaguid) applied"
           
-          # Patch 2: fix restore cgroup file prefix handling
-          cat > /tmp/patch2.patch << 'PATCH2'
-diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
-index 694b1cc8d..d0d04bff1 100755
---- a/kernel/cgroup/cgroup.c
-+++ b/kernel/cgroup/cgroup.c
-@@ -3496,6 +3496,11 @@ static int cgroup_add_file(struct cgroup_subsys_state *css, struct cgroup *cgrp,
- 		spin_unlock_irq(&cgroup_file_kn_lock);
- 	}
- 
-+	if (cft->ss && (cgrp->root->flags & CGRP_ROOT_NOPREFIX) && !(cft->flags & CFTYPE_NO_PREFIX)) {
-+				snprintf(name, CGROUP_FILE_NAME_MAX, "%s.%s", cft->ss->name, cft->name);
-+				kernfs_create_link(cgrp->kn, name, kn);
-+	}
-+
- 	return 0;
- }
-PATCH2
-          patch -p1 < /tmp/patch2.patch || echo "Patch 2 already applied or failed, continuing..."
-          
-          echo "Droidspaces patches applied."
-
-      - name: Verify defconfig
-        run: |
-          echo "=== Checking critical config options ==="
-          for opt in SYSVIPC POSIX_MQUEUE PID_NS IPC_NS DEVTMPFS CGROUP_DEVICE; do
-            grep -q "CONFIG_${opt}=y" arch/arm64/configs/alioth_stock-defconfig && \
-              echo "✅ CONFIG_${opt}=y" || echo "❌ CONFIG_${opt}=y MISSING"
-          done
-          echo "=== KernelSU config ==="
-          grep "CONFIG_KSU" arch/arm64/configs/alioth_stock-defconfig || echo "CONFIG_KSU not in defconfig (will use Kconfig default)"
+          LINE=$(grep -n "spin_unlock_irq(&cgroup_file_kn_lock)" kernel/cgroup/cgroup.c | head -1 | cut -d: -f1)
+          if [ -n "$LINE" ]; then
+            sed -i "${LINE}a\
+	if (cft->ss \&\& (cgrp->root->flags \& CGRP_ROOT_NOPREFIX) \&\& !(cft->flags \& CFTYPE_NO_PREFIX)) {
+				snprintf(name, CGROUP_FILE_NAME_MAX, \"%s.%s\", cft->ss->name, cft->name);
+				kernfs_create_link(cgrp->kn, name, kn);
+	}" \
+              kernel/cgroup/cgroup.c
+            echo "Patch 2 (cgroup prefix) applied"
+          else
+            echo "Could not find anchor line for patch 2"
+          fi
 
       - name: Build kernel
         run: |
           export ARCH=arm64
-          export CROSS_COMPILE=aarch64-linux-android-
-          export CROSS_COMPILE_COMPAT=arm-linux-androideabi-
-          export CC=clang
-          export LLVM=1
-          export LLVM_IAS=1
+          export PATH="/tmp/clang/bin:/tmp/gas:/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="/tmp/clang/lib64:${LD_LIBRARY_PATH}"
+          export KBUILD_BUILD_USER="Droidspaces-Build"
+          export KBUILD_BUILD_HOST="GitHub-Actions"
           
-          # Generate defconfig
-          make O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 \
-            CROSS_COMPILE=$CROSS_COMPILE \
-            CROSS_COMPILE_COMPAT=$CROSS_COMPILE_COMPAT \
-            $KERNEL_CONFIG 2>&1 | tail -20
+          make -j$(nproc) O=out ARCH=$ARCH \
+            LLVM=1 LLVM_IAS=1 \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+            $DEFCONFIG 2>&1 | tail -10
           
-          # Build kernel
-          make O=out ARCH=$ARCH LLVM=1 LLVM_IAS=1 \
-            CROSS_COMPILE=$CROSS_COMPILE \
-            CROSS_COMPILE_COMPAT=$CROSS_COMPILE_COMPAT \
-            -j$(nproc) 2>&1 | tail -30
+          if [ "$DEFCONFIG" = "alioth_stock-defconfig" ]; then
+            scripts/config --file out/.config \
+              --set-str CONFIG_LOCALVERSION "-droidspaces-ksu" \
+              -d CONFIG_LOCALVERSION_AUTO
+            make -j$(nproc) O=out ARCH=$ARCH \
+              LLVM=1 LLVM_IAS=1 \
+              CLANG_TRIPLE=aarch64-linux-gnu- \
+              CROSS_COMPILE=aarch64-linux-gnu- \
+              CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+              olddefconfig 2>&1 | tail -5
+          fi
           
+          make -j$(nproc) O=out ARCH=$ARCH \
+            LLVM=1 LLVM_IAS=1 \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+            2>&1 | tee build.log | tail -30
+          
+          find out/arch/arm64/boot/dts/vendor/qcom -name '*.dtb' -exec cat {} + >out/arch/arm64/boot/dtb 2>/dev/null || true
           echo "Build complete!"
 
-      - name: Package kernel
+      - name: Package with AnyKernel3
         run: |
-          # Copy built kernel image
-          mkdir -p /tmp/artifact
+          mkdir -p anykernel/kernels/alioth
           if [ -f out/arch/arm64/boot/Image ]; then
-            cp out/arch/arm64/boot/Image /tmp/artifact/
-            echo "✅ Image built"
+            cp out/arch/arm64/boot/Image anykernel/kernels/alioth
+          elif [ -f out/arch/arm64/boot/Image.gz ]; then
+            cp out/arch/arm64/boot/Image.gz anykernel/kernels/alioth
           fi
-          if [ -f out/arch/arm64/boot/Image.gz ]; then
-            cp out/arch/arm64/boot/Image.gz /tmp/artifact/
+          if [ -f out/arch/arm64/boot/dtb ]; then
+            cp out/arch/arm64/boot/dtb anykernel/kernels/alioth
           fi
-          if [ -f out/arch/arm64/boot/dtb.img ]; then
-            cp out/arch/arm64/boot/dtb.img /tmp/artifact/ 2>/dev/null || true
-          fi
-          # List DTBO files
-          find out/arch/arm64/boot -name "*.dtbo" -exec cp {} /tmp/artifact/ \; 2>/dev/null || true
-          # Also copy vmlinux for debugging
-          cp vmlinux /tmp/artifact/vmlinux 2>/dev/null || true
-          ls -la /tmp/artifact/
+          find out/arch/arm64/boot -name "dtbo.img" -exec cp {} anykernel/kernels/alioth \; 2>/dev/null || true
+          cd anykernel
+          ZIPNAME="Kernel-alioth-Droidspaces-KSU-$(date +%Y%m%d-%H%M).zip"
+          zip -r9 "../$ZIPNAME" ./* -x .git .gitignore ./*.zip
+          cd ..
+          echo "Packaged: $ZIPNAME"
+          echo "ZIPNAME=$ZIPNAME" >> $GITHUB_ENV
 
-      - name: Create release artifact
-        run: |
-          cd /tmp/artifact
-          BUILD_DATE=$(date +%Y%m%d-%H%M)
-          KSU_VER=$(grep "KSU_VERSION" KernelSU/include/version.h 2>/dev/null | head -1 || echo "KSU-$(cd KernelSU && git rev-parse --short HEAD 2>/dev/null || echo 'unknown')")
-          # Handle case where KernelSU dir structure may vary
-          KSU_TAG=$(cd /tmp/artifact/KernelSU 2>/dev/null && git describe --tags 2>/dev/null || echo "latest")
-          tar czf ~/kernel-alioth-droidspaces-${BUILD_DATE}.tar.gz Image Image.gz dtb.img *.dtbo vmlinux 2>/dev/null || \
-          tar czf ~/kernel-alioth-droidspaces-${BUILD_DATE}.tar.gz Image Image.gz vmlinux 2>/dev/null || \
-          tar czf ~/kernel-alioth-droidspaces-${BUILD_DATE}.tar.gz Image vmlinux 2>/dev/null || \
-          echo "Warning: Some artifacts missing"
-          ls -la ~/kernel-alioth-droidspaces-*.tar.gz
-
-      - name: Upload kernel image
+      - name: Upload kernel artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: alioth-kernel-droidspaces-ksu
-          path: /tmp/artifact/*
+          name: alioth-kernel-droidspaces-ksu-${{ env.BRANCH }}
+          path: |
+            *.zip
+            out/arch/arm64/boot/Image
+            out/arch/arm64/boot/Image.gz
+            out/arch/arm64/boot/dtb
+            out/arch/arm64/boot/dtbo.img
           if-no-files-found: warn
           retention-days: 7
