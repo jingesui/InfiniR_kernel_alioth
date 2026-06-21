@@ -24,8 +24,8 @@ on:
 
 env:
   TARGET_ARCH: arm64
-  DEFCONFIG: ${{{{ github.event.inputs.defconfig || 'alioth_stock-defconfig' }}}}
-  BRANCH: ${{{{ github.event.inputs.branch || '13.0-alioth' }}}}
+  DEFCONFIG: ${{ github.event.inputs.defconfig || 'alioth_stock-defconfig' }}
+  BRANCH: ${{ github.event.inputs.branch || '13.0-alioth' }}
 
 jobs:
   build-kernel:
@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          ref: ${{{{ env.BRANCH }}}}
+          ref: ${{ env.BRANCH }}
 
       - name: Add Swap (5GB)
         run: |
@@ -89,16 +89,20 @@ jobs:
           echo 'CONFIG_NF_CONNTRACK_NETLINK=y' >> $CFG
           echo 'CONFIG_NF_CONNTRACK_IPV4=y' >> $CFG
           echo 'CONFIG_USER_NS=y' >> $CFG
-          echo "Droidspaces config applied to $DEFCONFIG"
+          echo "Droidspaces config applied"
 
       - name: Apply Droidspaces non-GKI patches
         run: |
           sed -i 's/struct rtnl_link_stats64 dev_stats, \*stats;/struct rtnl_link_stats64 *stats;/' net/netfilter/xt_qtaguid.c 2>/dev/null || true
-          sed -i '/if (iface_entry->active) {/,/} else {/c\tstats = \&no_dev_stats;' net/netfilter/xt_qtaguid.c 2>/dev/null || true
+          sed -i '/if (iface_entry->active) {/,/} else {/c\    stats = \&no_dev_stats;' net/netfilter/xt_qtaguid.c 2>/dev/null || true
           sed -i '/dev_get_stats/d' net/netfilter/xt_qtaguid.c 2>/dev/null || true
           LINE=$(grep -n "spin_unlock_irq(&cgroup_file_kn_lock)" kernel/cgroup/cgroup.c | head -1 | cut -d: -f1)
           if [ -n "$LINE" ]; then
-            sed -i "$LINE a\n\tif (cft->ss \&\& (cgrp->root->flags \& CGRP_ROOT_NOPREFIX) \&\& !(cft->flags \& CFTYPE_NO_PREFIX)) {\n\t\t\tsnprintf(name, CGROUP_FILE_NAME_MAX, \"%s.%s\", cft->ss->name, cft->name);\n\t\t\tkernfs_create_link(cgrp->kn, name, kn);\n\t}" kernel/cgroup/cgroup.c
+            sed -i "$LINE a\
+        if (cft->ss \&\& (cgrp->root->flags \& CGRP_ROOT_NOPREFIX) \&\& !(cft->flags \& CFTYPE_NO_PREFIX)) {\
+                        snprintf(name, CGROUP_FILE_NAME_MAX, \"%s.%s\", cft->ss->name, cft->name);\
+                        kernfs_create_link(cgrp->kn, name, kn);\
+        }" kernel/cgroup/cgroup.c
           fi
 
       - name: Build kernel
@@ -126,7 +130,7 @@ jobs:
       - name: Upload kernel artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: alioth-kernel-droidspaces-ksu-${{{{ env.BRANCH }}}}
+          name: alioth-kernel-droidspaces-ksu-${{ env.BRANCH }}
           path: |
             *.zip
             out/arch/arm64/boot/Image
