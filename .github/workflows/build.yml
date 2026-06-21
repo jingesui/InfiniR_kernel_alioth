@@ -199,32 +199,30 @@ jobs:
           OUT_BOOT=out/arch/arm64/boot
           DTB_DIR=$OUT_BOOT/dts/vendor/qcom
           AK3=/tmp/anykernel
-          # Generate anykernel.sh for MIUI alioth (dump_boot/write_boot style)
-          cat > "$AK3/anykernel.sh" << 'AK3EOF'
-# AnyKernel3 Ramdisk Mod Script
-# osm0sis @ xda-developers
-properties() { '
-kernel.string=InfiniR Kernel alioth (Droidspaces + KernelSU)
-device.name1=alioth
-device.name2=aliothin
-do.devicecheck=1
-do.modules=0
-do.systemless=1
-do.cleanup=1
-do.cleanuponabort=0
-'; }
-block=boot;
-is_slot_device=1;
-ramdisk_compression=auto;
-. tools/ak3-core.sh;
-set_perm_recursive 0 0 755 644 $ramdisk/*;
-set_perm_recursive 0 0 750 750 $ramdisk/init* $ramdisk/sbin;
-dump_boot;
-if [ -d \$ramdisk/overlay ]; then
-  rm -rf \$ramdisk/overlay;
-fi;
-write_boot;
-AK3EOF
+          # Generate anykernel.sh for MIUI alioth
+          echo '# AnyKernel3 Ramdisk Mod Script' > "$AK3/anykernel.sh"
+          echo '# osm0sis @ xda-developers' >> "$AK3/anykernel.sh"
+          echo "properties() { '" >> "$AK3/anykernel.sh"
+          echo 'kernel.string=InfiniR Kernel alioth (Droidspaces + KernelSU)' >> "$AK3/anykernel.sh"
+          echo 'device.name1=alioth' >> "$AK3/anykernel.sh"
+          echo 'device.name2=aliothin' >> "$AK3/anykernel.sh"
+          echo 'do.devicecheck=1' >> "$AK3/anykernel.sh"
+          echo 'do.modules=0' >> "$AK3/anykernel.sh"
+          echo 'do.systemless=1' >> "$AK3/anykernel.sh"
+          echo 'do.cleanup=1' >> "$AK3/anykernel.sh"
+          echo 'do.cleanuponabort=0' >> "$AK3/anykernel.sh"
+          echo "'; }" >> "$AK3/anykernel.sh"
+          echo 'block=boot;' >> "$AK3/anykernel.sh"
+          echo 'is_slot_device=1;' >> "$AK3/anykernel.sh"
+          echo 'ramdisk_compression=auto;' >> "$AK3/anykernel.sh"
+          echo '. tools/ak3-core.sh;' >> "$AK3/anykernel.sh"
+          echo 'set_perm_recursive 0 0 755 644 $ramdisk/*;' >> "$AK3/anykernel.sh"
+          echo 'set_perm_recursive 0 0 750 750 $ramdisk/init* $ramdisk/sbin;' >> "$AK3/anykernel.sh"
+          echo 'dump_boot;' >> "$AK3/anykernel.sh"
+          echo 'if [ -d $ramdisk/overlay ]; then' >> "$AK3/anykernel.sh"
+          echo '  rm -rf $ramdisk/overlay;' >> "$AK3/anykernel.sh"
+          echo 'fi;' >> "$AK3/anykernel.sh"
+          echo 'write_boot;' >> "$AK3/anykernel.sh"
           chmod +x "$AK3/anykernel.sh"
           # Copy kernel image
           cp "$OUT_BOOT/Image" "$AK3/Image"
