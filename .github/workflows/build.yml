@@ -39,6 +39,8 @@ jobs:
 
       - name: Add Swap (5GB)
         run: |
+          sudo swapoff -a 2>/dev/null || true
+          sudo rm -f /swapfile
           sudo fallocate -l 5G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
@@ -92,7 +94,7 @@ jobs:
 
       - name: Apply Droidspaces non-GKI patches
         run: |
-          echo 'LS0tIGEvbmV0L25ldGZpbHRlci94dF9xdGFndWlkLmMKLS0tIGIvbmV0L25ldGZpbHRlci94dF9xdGFndWlkLmMKQEBALTA3MzksNyArMDczOSw3IEBAIHN0YXRpYyBpbnQgaWZhY2Vfc3RhdF9mbXRfcHJvY19zaG93KHN0cnVjdCBzZXFfZmlsZSAqbSwgdm9pZCAqdikKIHsKIAlzdHJ1Y3QgcHJvY19pZmFjZV9zdGF0X2ZtdF9pbmZvICpwID0gbS0+cHJpdmF0ZTsKIAlzdHJ1Y3QgaWZhY2Vfc3RhdCAqaWZhY2VfZW50cnk7Ci0Jc3RydWN0IHJ0bmxfbGlua19zdGF0NjQgZGV2X3N0YXRzLCAqc3RhdHM7CisJc3RydWN0IHJ0bmxfbGlua19zdGF0NjQgKnN0YXRzOwogCXN0cnVjdCBydG5sX2xpbmtfc3RhdDY0IG5vX2Rldl9zdGF0cyA9IHswfTsKIAogCi0JSWYgKGlmYWNlX2VudHJ5LT5hY3RpdmUpIHsKLQkJc3RhdHMgPSBkZXZfZ2V0X3N0YXRzKGlmYWNlX2VudHJ5LT5uZXRfZGV2LAotCQkJCSAgICAgICZkZXZfc3RhdHMpOwotCX0gZWxzZSB7Ci0JCXN0YXRzID0gJm5vX2Rldl9zdGF0czsKLQl9CisJc3RhdHMgPSAmbm9fZGV2X3N0YXRzOworCiAJLyoKIAkgKiBJZiB0aGUgbWVhbmluZyBvZiB0aGUgZGF0YSBjaGFuZ2VzLCB0aGVuIHVwZGF0ZSB0aGUgZm10WAogCSAqIHN0cmluZy4=' | base64 -d > /tmp/patch1.patch
+          echo 'LS0tIGEvbmV0L25ldGZpbHRlci94dF9xdGFndWlkLmMKLS0tIGIvbmV0L25ldGZpbHRlci94dF9xdGFndWlkLmMKQEBALTA3MzksNyArMDczOSw3IEBAIHN0YXRpYyBpbnQgaWZhY2Vfc3RhdF9mbXRfcHJvY19zaG93KHN0cnVjdCBzZXFfZmlsZSAqbSwgdm9pZCAqdikKIHsKIAlzdHJ1Y3QgcHJvY19pZmFjZV9zdGF0X2ZtdF9pbmZvICpwID0gbS0+cHJpdmF0ZTsKIAlzdHJ1Y3QgaWZhY2Vfc3RhdCAqaWZhY2VfZW50cnk7Ci0Jc3RydWN0IHJ0bmxfbGlua19zdGF0NjQgZGV2X3N0YXRzLCAqc3RhdHM7CisJc3RydWN0IHJ0bmxfbGlua19zdGF0NjQgKnN0YXRzOwogCXN0cnVjdCBydG5sX2xpbmtfc3RhdDY0IG5vX2Rldl9zdGF0cyA9IHswfTsKIAogCi0JaWYgKGlmYWNlX2VudHJ5LT5hY3RpdmUpIHsKLQkJc3RhdHMgPSBkZXZfZ2V0X3N0YXRzKGlmYWNlX2VudHJ5LT5uZXRfZGV2LAotCQkJCSAgICAgICZkZXZfc3RhdHMpOwotCX0gZWxzZSB7Ci0JCXN0YXRzID0gJm5vX2Rldl9zdGF0czsKLQl9CisJc3RhdHMgPSAmbm9fZGV2X3N0YXRzOworCiAJLyoKIAkgKiBJZiB0aGUgbWVhbmluZyBvZiB0aGUgZGF0YSBjaGFuZ2VzLCB0aGVuIHVwZGF0ZSB0aGUgZm10WAogCSAqIHN0cmluZy4=' | base64 -d > /tmp/patch1.patch
           echo 'LS0tIGEvY2dyb3VwL2Nncm91cC5jCi0tLSBiL2tncm91cC9jZ3JvdXAuYwpAQCAtMzQ5Niw2ICszNDk2LDExIEBAIHN0YXRpYyBpbnQgY2dyb3VwX2FkZF9maWxlKHN0cnVjdCBjZ3JvdXBfc3Vic3lzX3N0YXRlICpjc3MsIHN0cnVjdCBjZ3JvdXAgKmNncnAsCiAJCXNwaW5fdW5sb2NrX2lycSgmY2dyb3VwX2ZpbGVfa25fbG9jayk7CiAJfQogCisJaWYgKGNmdC0+c3MgJiYgKGNncnAtPnJvb3QtPmZsYWdzICYgQ0dSUF9ST09UX05PUFJFRklYKSAmJiAhKGNmdC0+ZmxhZ3MgJiBDRlRZUEVfTk9fUFJFRklYKSkgeworCQkJCXNucHJpbnRmKG5hbWUsIENHUk9VUF9GSUxFX05BTUVfTUFYLCAiJXMuJXMiLCBjZnQtPnNzLT5uYW1lLCBjZnQtPm5hbWUpOworCQkJCWtlcm5mc19jcmVhdGVfbGluayhjZ3JwLT5rbiwgbmFtZSwga24pOworCX0KKwogCXJldHVybiAwOwogfQ==' | base64 -d > /tmp/patch2.patch
           patch -p1 < /tmp/patch1.patch
           patch -p1 < /tmp/patch2.patch
