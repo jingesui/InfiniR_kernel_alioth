@@ -61,6 +61,8 @@ jobs:
           mkdir -p KernelSU/kernel
           cp -r /tmp/KernelSU-src/kernel/* KernelSU/kernel/
           rm -rf /tmp/KernelSU-src
+          # Patch ksu.c: MODULE_IMPORT_NS doesn't exist in kernel 4.19
+          sed -i '/^MODULE_IMPORT_NS/d' KernelSU/kernel/ksu.c
 
       - name: Apply Droidspaces kernel config & MIUI tweaks
         run: |
