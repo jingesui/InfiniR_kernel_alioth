@@ -63,6 +63,8 @@ jobs:
           rm -rf /tmp/KernelSU-src
           # Patch ksu.c: MODULE_IMPORT_NS doesn't exist in kernel 4.19
           sed -i '/^MODULE_IMPORT_NS/d' KernelSU/kernel/ksu.c
+          # Patch Makefile: kernel 4.19 already defines current_sid via selinux headers
+          sed -i 's/ccflags-y += -Wno-implicit-function-declaration/ccflags-y += -DKSU_COMPAT_HAS_CURRENT_SID\nccflags-y += -Wno-implicit-function-declaration/' KernelSU/kernel/Makefile
 
       - name: Apply Droidspaces kernel config & MIUI tweaks
         run: |
